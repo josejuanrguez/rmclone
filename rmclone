@@ -58,7 +58,7 @@ case "$1" in
                FILESREC=$(grep -c "$2" "$REGISTRY")
                if ! grep "$2" "$REGISTRY"; then echo "Nothing was found."; fi
             fi
-            echo "$FILESREC files will be recovered using option -c."
+            echo "$FILESREC files will be recovered using option -r."
             echo -e "There are $FLINES files in the trash bin\n"
             exit 0
          else
