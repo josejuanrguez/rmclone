@@ -1,3 +1,8 @@
+
+# rmclone
+# Take into account that this code is still under development, is being heavily tested and may contains bugs. 
+# Don't use it in production environments. Thanks.
+
 #!/bin/bash
 
 hash column 2>/dev/null || { echo >&2 "I require column but it's not installed. Aborting."; exit 1; }
