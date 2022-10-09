@@ -14,8 +14,8 @@ SCRIPTNAME=$(basename "$0")
 
 Help()
 {
-   echo -e "\nrmclone is an alternative to the rm command which moves files to a trash bin allowing"
-   echo -e "you to recover them later.\n"
+   echo -e "\nrmclone is an alternative to the rm command which moves files to a trash bin in compressed format to"
+   echo -e "reduce the space used on disk and allowing you to recover them later.\n"
    echo -e "Options: rmclone -h -p -d <identifyer> -i <identifyer> -r <identifyer> <filestodelete>"
    echo -e "Where <identifyer> can be FUID (File Unique ID), name, date or size.\n"
    echo -e "\t-h Print usage information."
@@ -25,17 +25,16 @@ Help()
    echo -e "\t-r Recover a file in the /home directory of the user."
    echo -e "\t   Use option -i <text> first to see what files will be recovered."
    echo -e "\n Options -d, -i and -r accept FUID, name, date or size to select files.\n"
-   echo -e "Examples: rmclone -i                    List all files located in the trash bin."
+   echo -e "Examples: rmclone -h                    Print this help."
+   echo -e "          rmclone -i                    List all files located in the trash bin."
    echo -e "          rmclone -i 23:03              List files deleted at 23:03."
-   echo -e "          rmclone -i 14/Apr             List files deleted on April 14."
+   echo -e "          rmclone -i 14/April           List files deleted on April 14."
    echo -e "          rmclone -i nsc13jrm           List file with the specified FUID."
    echo -e "          rmclone foo                   Move the file foo to the trash bin."
    echo -e "          rmclone -r foo                Recover the file foo from trash bin."
    echo -e "          rmclone -r nsc13jrm           Recover file with the specified FUID."
-   echo -e "          rmclone -r 03/Apr/2020        Recover files deleted in the specified date."
    echo -e "          rmclone -d hello.txt          Delete the file hello.txt from the trash bin."
-   echo -e "          rmclone -d 03/Mar/2020        Delete files removed on 2020 13th March."
-   echo -e "          rmclone -p                    Delete *permanently* ALL the files in the trash bin.\n"
+   echo -e "          rmclone -d 03/March/2020      Delete files removed on 2020 13th March.\n"
    exit 0
 }
 
@@ -43,7 +42,7 @@ if [ "$#" -eq 0 ]; then Help; exit 1; fi
 
 case "$1" in
      -i) if [ -f "$REGISTRY" ]; then
-            echo "-- ID --  --Erased     TimeStamp--  Size  Name"
+            echo "-- ID --  --Erased  TimeStamp--  Size  NAME"
             FLINES=$(wc -l "$REGISTRY" | cut -d " " -f1)
             if [ $# -eq 1 ]
             then
@@ -53,9 +52,8 @@ case "$1" in
                FILESREC=$(grep -c "$2" "$REGISTRY")
                if ! grep "$2" "$REGISTRY"; then echo "Nothing was found."; fi
             fi
-            echo -e "There are $FLINES files in the trash bin."
-            SIZE=$(du -h "$BINDIR" | cut -f1)
-            echo -e "Total size occupied by trash bin: $SIZE\n"
+            echo "$FILESREC files will be recovered using option -r."
+            echo -e "There are $FLINES files in the trash bin\n"
             exit 0
          else
             echo -e "There aren't deleted files.\n"
@@ -86,9 +84,11 @@ case "$1" in
                      FUID=$(echo "$line" | tr -s ' ' | cut -d " " -f1)
                      NAME=$(echo "$line" | tr -s ' ' | cut -d " " -f5)
                      echo "Recovering... $NAME"
-                     if mv "$BINDIR/$NAME$FUID" ./"$NAME"; then
+                     if gzip -dc "$BINDIR/$NAME$FUID" > ./"$NAME"; then
                         # Delete registry entry
                         sed -i "/$2/d" "$REGISTRY"
+                        # Delete file in trash bin
+                        rm -f "$BINDIR/$NAME$FUID"
                      fi
                   done
                   exit 0
@@ -113,7 +113,7 @@ case "$1" in
                            # Delete registry entry
                            if sed -i "/$2/d" "$REGISTRY"; then
                               # Delete file in trash bin
-                              rm "$BINDIR/$NAME$FUID"
+                              rm -f "$BINDIR/$NAME-$FUID"
                            else
                               echo "There was a problem deleting $NAME."
                            fi
@@ -138,18 +138,22 @@ case "$1" in
             ;;
 esac
 
-
 if [ ! -d "$BINDIR" ]; then
    mkdir "$BINDIR"
 fi
 
-
 for file in "$@";
   do
+     if [ -d "$file" ]
+     then
+        echo "$file is a directory. Skipping..."
+        continue
+     fi
+
      if [ -e "$file" ] && [ -r "$file" ] && [ -O "$file" ];
      then
        SIZE=$(ls -nh "$file" | cut -d " " -f5)
-       TIMESTAMP=$(date "+%a%d/%b/%Y %H:%M:%S")
+       TIMESTAMP=$(date "+%d/%B/%Y %H:%M:%S")
        #
        # A note about the FUID generator. There are many ways to get a fixed lenght FUID in linux
        # but the way I have used seems to be (one of) the fastest (I need the fastest!) but maybe
@@ -158,9 +162,10 @@ for file in "$@";
        #
        FUID=$(cut -d "-" -f1 < /proc/sys/kernel/random/uuid)
        FILENAME=$(basename "$file")
-       if mv "$file" "$BINDIR/$FILENAME$FUID";
+       if gzip -c "$file" > "$BINDIR/$FILENAME$FUID";
        then
           echo "$FUID  $TIMESTAMP $SIZE  $FILENAME" >> "$REGISTRY"
+          rm -f  "$file"
        fi
      else
         echo "$SCRIPTNAME: cannot remove '$file': File doesn't exist, isn't readable or doesn't belong to you."
