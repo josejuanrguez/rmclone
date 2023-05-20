@@ -14,19 +14,19 @@ SCRIPTNAME=$(basename "$0")
 
 Help()
 {
-   echo -e "\nrmclone is an alternative to the rm command which moves files to a trash bin in compressed format to"
-   echo -e "reduce the space used on disk and allowing you to recover them later.\n"
+   echo -e "\nrmclone is an alternative to the rm command which moves files to a trash bin and allowing"
+   echo -e "you to recover them later.\n"
    echo -e "Options: rmclone -h -p -d <identifyer> -i <identifyer> -r <identifyer> <filestodelete>"
    echo -e "Where <identifyer> can be FUID (File Unique ID), name, date or size.\n"
    echo -e "\t-h Print usage information."
    echo -e "\t-p Purge trash bin. All files will be lost."
    echo -e "\t-d Delete files with the given ID from the trash bin."
    echo -e "\t-i Print information about the files located in the trash bin."
+   echo -e "\t   You should use this option before using option -r"
    echo -e "\t-r Recover a file in the /home directory of the user."
    echo -e "\t   Use option -i <text> first to see what files will be recovered."
    echo -e "\n Options -d, -i and -r accept FUID, name, date or size to select files.\n"
-   echo -e "Examples: rmclone -h                    Print this help."
-   echo -e "          rmclone -i                    List all files located in the trash bin."
+   echo -e "Examples: rmclone -i                    List all files located in the trash bin."
    echo -e "          rmclone -i 23:03              List files deleted at 23:03."
    echo -e "          rmclone -i 14/April           List files deleted on April 14."
    echo -e "          rmclone -i nsc13jrm           List file with the specified FUID."
@@ -42,7 +42,7 @@ if [ "$#" -eq 0 ]; then Help; exit 1; fi
 
 case "$1" in
      -i) if [ -f "$REGISTRY" ]; then
-            echo "-- ID --  --Erased  TimeStamp--  Size  NAME"
+            echo "-- ID --  --   Erased TimeStamp   -- Size NAME"
             FLINES=$(wc -l "$REGISTRY" | cut -d " " -f1)
             if [ $# -eq 1 ]
             then
@@ -64,7 +64,7 @@ case "$1" in
      -p) if [ -f "$REGISTRY" ]; then
             read -rp "Are you sure you want to purge the trash bin [Y/N]? " answer
             if [ "$answer" == "Y" ] || [ "$answer" == "y" ]; then
-               rm -f "$BINDIR"/*
+               rm -f "$BINDIR"/* 2> /dev/null
                echo -e "Database purged\n"
             else
                echo -e "Nothing was done\n"
@@ -84,7 +84,7 @@ case "$1" in
                      FUID=$(echo "$line" | tr -s ' ' | cut -d " " -f1)
                      NAME=$(echo "$line" | tr -s ' ' | cut -d " " -f5)
                      echo "Recovering... $NAME"
-                     if gzip -dc "$BINDIR/$NAME$FUID" > ./"$NAME"; then
+                     if mv "$BINDIR/$NAME$FUID" ./"$NAME"; then
                         # Delete registry entry
                         sed -i "/$2/d" "$REGISTRY"
                         # Delete file in trash bin
@@ -153,7 +153,7 @@ for file in "$@";
      if [ -e "$file" ] && [ -r "$file" ] && [ -O "$file" ];
      then
        SIZE=$(ls -nh "$file" | cut -d " " -f5)
-       TIMESTAMP=$(date "+%d/%B/%Y %H:%M:%S")
+       TIMESTAMP=$(date "+%a%d/%B/%Y %H:%M:%S")
        #
        # A note about the FUID generator. There are many ways to get a fixed lenght FUID in linux
        # but the way I have used seems to be (one of) the fastest (I need the fastest!) but maybe
@@ -162,10 +162,9 @@ for file in "$@";
        #
        FUID=$(cut -d "-" -f1 < /proc/sys/kernel/random/uuid)
        FILENAME=$(basename "$file")
-       if gzip -c "$file" > "$BINDIR/$FILENAME$FUID";
+       if mv "$file" "$BINDIR/$FILENAME$FUID";
        then
           echo "$FUID  $TIMESTAMP $SIZE  $FILENAME" >> "$REGISTRY"
-          rm -f  "$file"
        fi
      else
         echo "$SCRIPTNAME: cannot remove '$file': File doesn't exist, isn't readable or doesn't belong to you."
